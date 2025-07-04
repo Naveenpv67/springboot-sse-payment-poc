@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Payment SSE</title>
+</head>
+<body>
+
+
+
+  <h3>Start Payment Flow</h3>
+  <label>Ref ID: <input type="text" id="refIdInput" placeholder="Enter Ref ID" /></label>
+  <button onclick="makePayment()">Initiate Payment</button>
+  <br><br>
+  <label>Callback Ref ID: <input type="text" id="callbackRefIdInput" placeholder="Enter Ref ID for Callback" /></label>
+  <button onclick="simulateCallback()">Simulate NBBL Callback</button>
+  <br><br>
+  <label>Watch Status Ref ID: <input type="text" id="watchRefIdInput" placeholder="Enter Ref ID to Watch Status" /></label>
+  <button onclick="watchStatus()">Watch Status</button>
+  <p id="status"></p>
+  <p id="error" style="color:red;"></p>
+
+  <script>
+    let statusSource = null;
+    let currentRefId = null;
+
+
+    function makePayment() {
+      document.getElementById("error").innerText = "";
+      const refId = document.getElementById("refIdInput").value.trim();
+      if (!refId) {
+        document.getElementById("error").innerText = "Please enter a Ref ID.";
+        return;
+      }
+      fetch("/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: 100, refId })
+      })
+      .then(res => res.json())
+      .then(({ refId, status, errorMessage }) => {
+        if (status === "INITIATED") {
+          currentRefId = refId;
+          document.getElementById("status").innerText = "INITIATED";
+          if (statusSource) statusSource.close();
+          statusSource = new EventSource(`/pay/status/${refId}`);
+          statusSource.onmessage = e => {
+            document.getElementById("status").innerText = e.data;
+            if (["SUCCESS", "FAILURE"].includes(e.data)) statusSource.close();
+          };
+        } else {
+          document.getElementById("error").innerText = errorMessage || "Unknown error.";
+        }
+      });
+    }
+
+    function watchStatus() {
+      document.getElementById("error").innerText = "";
+      const refId = document.getElementById("watchRefIdInput").value.trim();
+      if (!refId) {
+        document.getElementById("error").innerText = "Please enter a Ref ID to watch status.";
+        return;
+      }
+      if (statusSource) statusSource.close();
+      statusSource = new EventSource(`/pay/status/${refId}`);
+      statusSource.onmessage = e => {
+        document.getElementById("status").innerText = e.data;
+        if (["SUCCESS", "FAILURE"].includes(e.data)) statusSource.close();
+      };
+    }
+
+    function simulateCallback() {
+      document.getElementById("error").innerText = "";
+      const callbackRefId = document.getElementById("callbackRefIdInput").value.trim();
+      if (!callbackRefId) {
+        document.getElementById("error").innerText = "Please enter a Ref ID for callback.";
+        return;
+      }
+      fetch(`/pay/callback/${callbackRefId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "SUCCESS" })
+      })
+      .then(res => res.text())
+      .then(msg => {
+        document.getElementById("error").innerText = msg;
+      });
+    }
+  </script>
+</body>
+</html>
