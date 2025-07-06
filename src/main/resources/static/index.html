@@ -16,7 +16,7 @@
   <br><br>
   <label>Watch Status Ref ID: <input type="text" id="watchRefIdInput" placeholder="Enter Ref ID to Watch Status" /></label>
   <button onclick="watchStatus()">Watch Status</button>
-  <p id="status"></p>
+  <pre id="status"></pre>
   <p id="error" style="color:red;"></p>
 
   <script>
@@ -37,20 +37,6 @@
         body: JSON.stringify({ amount: 100, refId })
       })
       .then(res => res.json())
-      .then(({ refId, status, errorMessage }) => {
-        if (status === "INITIATED") {
-          currentRefId = refId;
-          document.getElementById("status").innerText = "INITIATED";
-          if (statusSource) statusSource.close();
-          statusSource = new EventSource(`/pay/status/${refId}`);
-          statusSource.onmessage = e => {
-            document.getElementById("status").innerText = e.data;
-            if (["SUCCESS", "FAILURE"].includes(e.data)) statusSource.close();
-          };
-        } else {
-          document.getElementById("error").innerText = errorMessage || "Unknown error.";
-        }
-      });
     }
 
     function watchStatus() {
@@ -63,8 +49,17 @@
       if (statusSource) statusSource.close();
       statusSource = new EventSource(`/pay/status/${refId}`);
       statusSource.onmessage = e => {
-        document.getElementById("status").innerText = e.data;
-        if (["SUCCESS", "FAILURE"].includes(e.data)) statusSource.close();
+        try {
+          const json = JSON.parse(e.data);
+          document.getElementById("status").innerText = JSON.stringify(json, null, 2);
+          // Auto-close EventSource on terminal status
+          if (["SUCCESS", "FAILURE"].includes(json.transactionStatus)) {
+            statusSource.close();
+            statusSource = null;
+          }
+        } catch (err) {
+          document.getElementById("status").innerText = e.data;
+        }
       };
     }
 

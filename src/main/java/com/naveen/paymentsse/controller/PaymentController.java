@@ -40,7 +40,20 @@ public class PaymentController {
     public ResponseEntity<String> receiveCallback(@PathVariable String refId,
                                                   @RequestBody Map<String, String> payload) {
         String status = payload.getOrDefault("status", "FAILURE");
-        paymentService.completeTransaction(refId, status);
+        // Build a hardcoded PaymentStatusResponse with dummy data
+        com.naveen.paymentsse.dto.PaymentStatusResponse response = new com.naveen.paymentsse.dto.PaymentStatusResponse();
+        response.setRefId(refId);
+        response.setTransactionStatus(status);
+        response.setTransactionTime(java.time.LocalDateTime.now().toString());
+        response.setTransactionAmount("100.00");
+        java.util.List<com.naveen.paymentsse.dto.PaymentStatusResponse.AccountDetail> accounts = new java.util.ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            accounts.add(new com.naveen.paymentsse.dto.PaymentStatusResponse.AccountDetail(
+                    "123456789" + i, "CUST00" + (i + 1), "987654321" + i, "5000.00"
+            ));
+        }
+        response.setAccounts(accounts);
+        paymentService.completeTransaction(refId, response);
         return ResponseEntity.ok("Callback received for refId: " + refId);
     }
 }
